@@ -3,14 +3,14 @@ project(vins_estimator)
 
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O0 -Wall -g")
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
-find_package(Eigen3 REQUIRED)
-find_package(Ceres REQUIRED)
+find_package(Eigen3 3.3.3 EXACT REQUIRED)
+find_package(Ceres 1.14.0 EXACT REQUIRED)
 find_package(Pangolin REQUIRED)
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3.4.6 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options system)
 
 
