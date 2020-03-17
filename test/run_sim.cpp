@@ -25,7 +25,14 @@ std::shared_ptr<System> pSystem;
 
 void PubImuData()
 {
-	string sImu_data_file = sData_path + "imu_pose.txt";
+	bool use_noisy_data = true;
+	string sImu_data_file;
+	if(use_noisy_data){
+		sImu_data_file = sData_path + "imu_pose_noise.txt";
+	}else{
+		sImu_data_file = sData_path + "imu_pose.txt";
+	}
+
 	cout << "1 PubImuData start sImu_data_filea: " << sImu_data_file << endl;
 	ifstream fsImu;
 	fsImu.open(sImu_data_file.c_str());
