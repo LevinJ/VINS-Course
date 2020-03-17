@@ -5,11 +5,13 @@
 using namespace std;
 using namespace cv;
 using namespace pangolin;
+#include <map>
 
 System::System(string sConfig_file_)
     :bStart_backend(true)
 {
-    string sConfig_file = sConfig_file_ + "euroc_config.yaml";
+//    string sConfig_file = sConfig_file_ + "euroc_config.yaml";
+    string sConfig_file = sConfig_file_;
 
     cout << "1 System() sConfig_file: " << sConfig_file << endl;
     readParameters(sConfig_file);
@@ -47,6 +49,160 @@ System::~System()
     ofs_pose.close();
 }
 
+static int get_feature_id(std::string id_str){
+	 static std::map<std::string,int> stored_map;
+	 static int feature_id =0;
+	 auto search = stored_map.find(id_str);
+	 if (search == stored_map.end()) {
+		 stored_map[id_str] = feature_id++;
+		 std::cout<<id_str<<" is of id "<<feature_id-1<<endl;
+	 }
+	 return stored_map[id_str] ;
+}
+void System::PubImageData_sim(double dStampSec, std::string img_path){
+	if (!init_feature)
+	{
+		cout << "1 PubImageData skip the first detected feature, which doesn't contain optical flow speed" << endl;
+		init_feature = 1;
+		return;
+	}
+
+	if (first_image_flag)
+	{
+		cout << "2 PubImageData first_image_flag" << endl;
+		first_image_flag = false;
+		first_image_time = dStampSec;
+		last_image_time = dStampSec;
+		return;
+	}
+	// detect unstable camera stream
+	if (dStampSec - last_image_time > 1.0 || dStampSec < last_image_time)
+	{
+		cerr << "3 PubImageData image discontinue! reset the feature tracker!" << endl;
+		first_image_flag = true;
+		last_image_time = 0;
+		pub_count = 1;
+		return;
+	}
+	last_image_time = dStampSec;
+	// frequency control
+	if (round(1.0 * pub_count / (dStampSec - first_image_time)) <= FREQ)
+	{
+		PUB_THIS_FRAME = true;
+		// reset the frequency control
+		if (abs(1.0 * pub_count / (dStampSec - first_image_time) - FREQ) < 0.01 * FREQ)
+		{
+			first_image_time = dStampSec;
+			pub_count = 0;
+		}
+	}
+	else
+	{
+		PUB_THIS_FRAME = false;
+	}
+
+	TicToc t_r;
+	// cout << "3 PubImageData t : " << dStampSec << endl;
+//	trackerData[0].readImage(img, dStampSec);
+//
+//	for (unsigned int i = 0;; i++)
+//	{
+//		bool completed = false;
+//		completed |= trackerData[0].updateID(i);
+//
+//		if (!completed)
+//			break;
+//	}
+	ifstream fsImage;
+	fsImage.open(img_path.c_str());
+	if (!fsImage.is_open())
+	{
+		cerr << "Failed to open image file! " << img_path << endl;
+		return;
+	}
+	std::string sImage_line;
+	vector<int> ids;
+	vector<cv::Point2f> cur_un_pts;
+	while (std::getline(fsImage, sImage_line) && !sImage_line.empty()){
+		double x,y,z,cont;
+		double u,v;
+
+		std::istringstream ssImuData(sImage_line);
+		ssImuData >> x>>y>>z>>cont>>u>>v;
+		std::ostringstream stringStream;
+		stringStream << x<<"_"<<y<<"_"<<z;
+		int fid = get_feature_id(stringStream.str());
+		ids.push_back(fid);
+		cur_un_pts.push_back(Point2f(u,v));
+	}
+
+	if (PUB_THIS_FRAME)
+	{
+		pub_count++;
+		shared_ptr<IMG_MSG> feature_points(new IMG_MSG());
+		feature_points->header = dStampSec;
+		vector<set<int>> hash_ids(NUM_OF_CAM);
+		for (int i = 0; i < NUM_OF_CAM; i++)
+		{
+//			auto &un_pts = cur_un_pts;
+//			auto &cur_pts = trackerData[i].cur_pts;
+//			auto &ids = trackerData[i].ids;
+//			auto &pts_velocity = trackerData[i].pts_velocity;
+			for (unsigned int j = 0; j < ids.size(); j++)
+			{
+
+				int p_id = ids[j];
+				hash_ids[i].insert(p_id);
+				double x = cur_un_pts[j].x;
+				double y = cur_un_pts[j].y;
+				double z = 1;
+				feature_points->points.push_back(Vector3d(x, y, z));
+				feature_points->id_of_point.push_back(p_id * NUM_OF_CAM + i);
+				feature_points->u_of_point.push_back(-1);
+				feature_points->v_of_point.push_back(-1);
+				feature_points->velocity_x_of_point.push_back(-1);
+				feature_points->velocity_y_of_point.push_back(-1);
+
+			}
+
+			// skip the first image; since no optical speed on frist image
+			if (!init_pub)
+			{
+				cout << "4 PubImage init_pub skip the first image!" << endl;
+				init_pub = 1;
+			}
+			else
+			{
+				m_buf.lock();
+				feature_buf.push(feature_points);
+				// cout << "5 PubImage t : " << fixed << feature_points->header
+				//     << " feature_buf size: " << feature_buf.size() << endl;
+				m_buf.unlock();
+				con.notify_one();
+			}
+		}
+	}
+
+
+//#ifdef __linux__
+//	cv::Mat show_img;
+//	cv::cvtColor(img, show_img, CV_GRAY2RGB);
+//	if (SHOW_TRACK)
+//	{
+//		for (unsigned int j = 0; j < trackerData[0].cur_pts.size(); j++)
+//		{
+//			double len = min(1.0, 1.0 * trackerData[0].track_cnt[j] / WINDOW_SIZE);
+//			cv::circle(show_img, trackerData[0].cur_pts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+//		}
+//
+//		cv::namedWindow("IMAGE", CV_WINDOW_AUTOSIZE);
+//		cv::imshow("IMAGE", show_img);
+//		cv::waitKey(1);
+//	}
+//#endif
+	// cout << "5 PubImage" << endl;
+
+}
 void System::PubImageData(double dStampSec, Mat &img)
 {
     if (!init_feature)

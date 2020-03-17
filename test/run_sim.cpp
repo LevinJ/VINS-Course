@@ -25,7 +25,7 @@ std::shared_ptr<System> pSystem;
 
 void PubImuData()
 {
-	string sImu_data_file = sConfig_path + "MH_05_imu0.txt";
+	string sImu_data_file = sData_path + "imu_pose.txt";
 	cout << "1 PubImuData start sImu_data_filea: " << sImu_data_file << endl;
 	ifstream fsImu;
 	fsImu.open(sImu_data_file.c_str());
@@ -39,12 +39,17 @@ void PubImuData()
 	double dStampNSec = 0.0;
 	Vector3d vAcc;
 	Vector3d vGyr;
+	Vec3 P;   // pose
+	Qd   Q;   // Rotation
 	while (std::getline(fsImu, sImu_line) && !sImu_line.empty()) // read imu data
 	{
 		std::istringstream ssImuData(sImu_line);
-		ssImuData >> dStampNSec >> vGyr.x() >> vGyr.y() >> vGyr.z() >> vAcc.x() >> vAcc.y() >> vAcc.z();
+		ssImuData >> dStampNSec;
+		ssImuData>>Q.w()>>Q.x()>>Q.y()>>Q.z();
+		ssImuData>>P.x()>>P.y()>>P.z();
+		ssImuData >> vGyr.x() >> vGyr.y() >> vGyr.z() >> vAcc.x() >> vAcc.y() >> vAcc.z();
 		// cout << "Imu t: " << fixed << dStampNSec << " gyr: " << vGyr.transpose() << " acc: " << vAcc.transpose() << endl;
-		pSystem->PubImuData(dStampNSec / 1e9, vGyr, vAcc);
+		pSystem->PubImuData(dStampNSec , vGyr, vAcc);
 		usleep(5000*nDelayTimes);
 	}
 	fsImu.close();
@@ -52,7 +57,7 @@ void PubImuData()
 
 void PubImageData()
 {
-	string sImage_file = sConfig_path + "MH_05_cam0.txt";
+	string sImage_file = sData_path + "cam_pose_tum.txt";
 
 	cout << "1 PubImageData start sImage_file: " << sImage_file << endl;
 
@@ -66,23 +71,21 @@ void PubImageData()
 
 	std::string sImage_line;
 	double dStampNSec;
-	string sImgFileName;
 	
 	// cv::namedWindow("SOURCE IMAGE", CV_WINDOW_AUTOSIZE);
+	int img_id = 0;
 	while (std::getline(fsImage, sImage_line) && !sImage_line.empty())
 	{
 		std::istringstream ssImuData(sImage_line);
-		ssImuData >> dStampNSec >> sImgFileName;
-		// cout << "Image t : " << fixed << dStampNSec << " Name: " << sImgFileName << endl;
-		string imagePath = sData_path + "cam0/data/" + sImgFileName;
+		ssImuData >> dStampNSec;
 
-		Mat img = imread(imagePath.c_str(), 0);
-		if (img.empty())
-		{
-			cerr << "image is empty! path: " << imagePath << endl;
-			return;
-		}
-		pSystem->PubImageData(dStampNSec / 1e9, img);
+		std::ostringstream stringStream;
+		stringStream << sData_path<<"keyframe/all_points_"<<img_id++<<".txt";
+		string imagePath =  stringStream.str();
+		cout << "Image t : " << fixed << dStampNSec << " Name: " << imagePath << endl;
+
+
+		pSystem->PubImageData_sim(dStampNSec, imagePath);
 		// cv::imshow("SOURCE IMAGE", img);
 		// cv::waitKey(0);
 		usleep(50000*nDelayTimes);
@@ -151,14 +154,14 @@ int main(int argc, char **argv)
 {
 	if(argc != 3)
 	{
-		cerr << "./run_euroc PATH_TO_FOLDER/MH-05/mav0 PATH_TO_CONFIG/config \n" 
-			<< "For example: ./run_euroc /home/stevencui/dataset/EuRoC/MH-05/mav0/ ../config/"<< endl;
+		cerr << "./run_sim PATH_TO_FOLDER/MH-05/mav0 PATH_TO_CONFIG/config \n"
+			<< "For example: ./run_sim /home/stevencui/dataset/EuRoC/MH-05/mav0/ ../config/"<< endl;
 		return -1;
 	}
 	sData_path = argv[1];
 	sConfig_path = argv[2];
 
-	pSystem.reset(new System(sConfig_path + "euroc_config.yaml"));
+	pSystem.reset(new System(sConfig_path + "sim_config.yaml"));
 	
 	std::thread thd_BackEnd(&System::ProcessBackEnd, pSystem);
 		
