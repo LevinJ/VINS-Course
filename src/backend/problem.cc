@@ -102,6 +102,16 @@ bool Problem::IsLandmarkVertex(std::shared_ptr<myslam::backend::Vertex> v) {
            type == string("VertexInverseDepth");
 }
 
+bool Problem::IsProjectionEdge(std::shared_ptr<Edge> e){
+	string type = e->TypeInfo();
+	return type == string("EdgeReprojection");
+}
+
+bool Problem::IsImuEdge(std::shared_ptr<Edge> e){
+	string type = e->TypeInfo();
+	return type == string("EdgeImu");
+}
+
 bool Problem::AddEdge(shared_ptr<Edge> edge) {
     if (edges_.find(edge->Id()) == edges_.end()) {
         edges_.insert(pair<ulong, std::shared_ptr<Edge>>(edge->Id(), edge));
@@ -186,7 +196,8 @@ bool Problem::Solve(int iterations) {
     int iter = 0;
     double last_chi_ = 1e20;
     while (!stop && (iter < iterations)) {
-        std::cout << "iter: " << iter << " , chi= " << currentChi_ << " , Lambda= " << currentLambda_ << std::endl;
+        std::cout << "iter: " << iter << " , chi= " << currentChi_<<",vision="<<current_prj_Chi_
+        		<<",imu="<<current_imu_Chi_<< " , Lambda= " << currentLambda_ << std::endl;
         bool oneStepSuccess = false;
         int false_cnt = 0;
         while (!oneStepSuccess && false_cnt < 10)  // 不断尝试 Lambda, 直到成功迭代一步
@@ -498,9 +509,18 @@ void Problem::ComputeLambdaInitLM() {
     ni_ = 2.;
     currentLambda_ = -1.;
     currentChi_ = 0.0;
+    current_imu_Chi_ = 0.0;
+    current_prj_Chi_ = 0.0;
 
     for (auto edge: edges_) {
         currentChi_ += edge.second->RobustChi2();
+        if(IsProjectionEdge(edge.second)){
+        	current_prj_Chi_ +=  0.5 * edge.second->RobustChi2();
+        }
+        if(IsImuEdge(edge.second)){
+        	current_imu_Chi_ +=  0.5 * edge.second->RobustChi2();
+		}
+
     }
     if (err_prior_.rows() > 0)
         currentChi_ += err_prior_.squaredNorm();
@@ -547,9 +567,17 @@ bool Problem::IsGoodStepInLM() {
 
     // recompute residuals after update state
     double tempChi = 0.0;
+    double temp_current_imu_Chi_ = 0;
+    double temp_current_prj_Chi_ = 0;
     for (auto edge: edges_) {
         edge.second->ComputeResidual();
         tempChi += edge.second->RobustChi2();
+        if(IsProjectionEdge(edge.second)){
+			temp_current_prj_Chi_ +=  0.5 * edge.second->RobustChi2();
+		}
+		if(IsImuEdge(edge.second)){
+			temp_current_imu_Chi_ +=  0.5 * edge.second->RobustChi2();
+		}
     }
     if (err_prior_.size() > 0)
         tempChi += err_prior_.squaredNorm();
@@ -564,6 +592,8 @@ bool Problem::IsGoodStepInLM() {
         currentLambda_ *= scaleFactor;
         ni_ = 2;
         currentChi_ = tempChi;
+        current_prj_Chi_ = temp_current_prj_Chi_;
+        current_imu_Chi_ = temp_current_imu_Chi_;
         return true;
     } else {
         currentLambda_ *= ni_;

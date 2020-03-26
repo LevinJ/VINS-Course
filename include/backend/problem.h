@@ -126,6 +126,10 @@ private:
     /// 判断一个顶点是否为landmark顶点
     bool IsLandmarkVertex(std::shared_ptr<Vertex> v);
 
+
+    bool IsProjectionEdge(std::shared_ptr<Edge> e);
+    bool IsImuEdge(std::shared_ptr<Edge> e);
+
     /// 在新增顶点后，需要调整几个hessian的大小
     void ResizePoseHessiansWhenAddingPose(std::shared_ptr<Vertex> v);
 
@@ -156,6 +160,8 @@ private:
     double currentChi_;
     double stopThresholdLM_;    // LM 迭代退出阈值条件
     double ni_;                 //控制 Lambda 缩放大小
+    double current_imu_Chi_;
+    double current_prj_Chi_;
 
     ProblemType problemType_;
 

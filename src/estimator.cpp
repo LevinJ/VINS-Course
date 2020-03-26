@@ -1041,11 +1041,11 @@ void Estimator::problemSolve()
     {
         std::cout << "----------- update bprior -------------\n";
         std::cout << "             before: " << bprior_.norm() << std::endl;
-        std::cout << "                     " << errprior_.norm() << std::endl;
+        std::cout << "                     " << errprior_.squaredNorm()* 0.5 << std::endl;
         bprior_ = problem.GetbPrior();
         errprior_ = problem.GetErrPrior();
         std::cout << "             after: " << bprior_.norm() << std::endl;
-        std::cout << "                    " << errprior_.norm() << std::endl;
+        std::cout << "                    " << errprior_.squaredNorm()* 0.5 << std::endl;
     }
 
     // update parameter
