@@ -968,6 +968,7 @@ void Estimator::problemSolve()
         imuEdge->SetVertex(edge_vertex);
         problem.AddEdge(imuEdge);
     }
+    int imu_edge_num = problem.GetEdegNum();
 
     // Visual Factor
     vector<shared_ptr<backend::VertexInverseDepth>> vertexPt_vec;
@@ -1016,6 +1017,7 @@ void Estimator::problemSolve()
             }
         }
     }
+    int vision_edge_num = problem.GetEdegNum() - imu_edge_num;
 
     // 先验
     {
@@ -1033,7 +1035,8 @@ void Estimator::problemSolve()
             problem.ExtendHessiansPriorSize(15); // 但是这个 prior 还是之前的维度，需要扩展下装新的pose
         }
     }
-
+    static int img_num = 1;
+    std::cout <<"idx="<<img_num++<< ",imu_num ="<<imu_edge_num<<", vision_num="<<vision_edge_num<<endl;;
     problem.Solve(10);
 
     // update bprior_,  Hprior_ do not need update

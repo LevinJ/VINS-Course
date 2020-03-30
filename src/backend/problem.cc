@@ -34,10 +34,11 @@ Problem::Problem(ProblemType problemType) :
     LogoutVectorSize();
     verticies_marg_.clear();
 }
-
+extern unsigned long global_edge_id;
 Problem::~Problem() {
 //    std::cout << "Problem IS Deleted"<<std::endl;
     global_vertex_id = 0;
+    global_edge_id = 0;
 }
 
 bool Problem::AddVertex(std::shared_ptr<Vertex> vertex) {
@@ -519,9 +520,11 @@ void Problem::ComputeLambdaInitLM() {
         }
         if(IsImuEdge(edge.second)){
         	current_imu_Chi_ +=  0.5 * edge.second->RobustChi2();
+        	std::cout<<"id="<<edge.second->Id()<<","<<0.5 * edge.second->RobustChi2()<<" ";
 		}
 
     }
+    std:cout<<std::endl;
     if (err_prior_.rows() > 0)
         currentChi_ += err_prior_.squaredNorm();
     currentChi_ *= 0.5;

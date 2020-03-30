@@ -85,6 +85,7 @@ public:
     void SetJtPrior(const MatXX& J){Jt_prior_inv_ = J;}
 
     void ExtendHessiansPriorSize(int dim);
+    int GetEdegNum(){return edges_.size();}
 
     //test compute prior
     void TestComputePrior();
