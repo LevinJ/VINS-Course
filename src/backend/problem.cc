@@ -525,8 +525,11 @@ void Problem::ComputeLambdaInitLM() {
 
     }
     std:cout<<std::endl;
-    if (err_prior_.rows() > 0)
-        currentChi_ += err_prior_.squaredNorm();
+    if (err_prior_.rows() > 0){
+    	currentChi_ += err_prior_.squaredNorm();
+    	std::cout <<"prior chi= "<<err_prior_.squaredNorm() * 0.5<<std::endl;
+    }
+
     currentChi_ *= 0.5;
 
     stopThresholdLM_ = 1e-10 * currentChi_;          // 迭代条件为 误差下降 1e-6 倍

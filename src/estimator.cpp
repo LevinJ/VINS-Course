@@ -826,6 +826,7 @@ void Estimator::MargOldFrame()
     bprior_ = problem.GetbPrior();
     errprior_ = problem.GetErrPrior();
     Jprior_inv_ = problem.GetJtPrior();
+    std::cout <<"update prior in margin old"<<std::endl;
 }
 void Estimator::MargNewFrame()
 {
@@ -898,6 +899,7 @@ void Estimator::MargNewFrame()
     bprior_ = problem.GetbPrior();
     errprior_ = problem.GetErrPrior();
     Jprior_inv_ = problem.GetJtPrior();
+    std::cout <<"update prior in margin new"<<std::endl;
 }
 void Estimator::problemSolve()
 {
@@ -1024,6 +1026,7 @@ void Estimator::problemSolve()
         // 已经有 Prior 了
         if (Hprior_.rows() > 0)
         {
+        	std::cout <<"has prior"<<std::endl;
             // 外参数先验设置为 0. TODO:: 这个应该放到 solver 里去弄
             //            Hprior_.block(0,0,6,Hprior_.cols()).setZero();
             //            Hprior_.block(0,0,Hprior_.rows(),6).setZero();

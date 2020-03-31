@@ -423,7 +423,10 @@ void System::ProcessBackEnd()
         m_estimator.lock();
         for (auto &measurement : measurements)
         {
-            auto img_msg = measurement.second;
+        	int imu_size =  measurement.first.size();
+        	auto img_msg = measurement.second;
+        	std::cout<< std::fixed<<setprecision(6) <<"img="<<img_msg->header<<",imu size= "<<imu_size<<",s="
+        	                    			<<measurement.first[0]->header<<",e="<<measurement.first[imu_size-1]->header<<std::endl;
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
             for (auto &imu_msg : measurement.first)
             {
