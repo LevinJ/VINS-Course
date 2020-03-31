@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(vins_estimator)
 
 set(CMAKE_BUILD_TYPE "Release")
+#set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_CXX_FLAGS "-std=c++11")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 
@@ -80,6 +81,10 @@ target_link_libraries(run_euroc
   -lpthread) 
 add_executable(run_sim test/run_sim.cpp)
 target_link_libraries(run_sim 
+  MyVio  
+  -lpthread)
+add_executable(run_bag test/run_bag.cpp)
+target_link_libraries(run_bag 
   MyVio  
   -lpthread)
 
