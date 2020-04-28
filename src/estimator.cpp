@@ -1076,6 +1076,12 @@ void Estimator::problemSolve()
         VecX f = vertexPt_vec[i]->Parameters();
         para_Feature[i][0] = f[0];
     }
+    //print final solver statistics
+    extern void print_solver_statistics();
+    int idx = img_num - 1;
+    if (idx == 10 || idx == 1089){
+    	print_solver_statistics();
+    }
 }
 
 void Estimator::backendOptimization()

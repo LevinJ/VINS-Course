@@ -4,6 +4,10 @@
 #include <iomanip>
 #include "backend/problem.h"
 #include "utility/tic_toc.h"
+#include<numeric>
+#include<vector>
+#include<algorithm>
+#include<cmath>
 
 #ifdef USE_OPENMP
 
@@ -12,6 +16,40 @@
 #endif
 
 using namespace std;
+
+static std::vector<double> g_solver_time;
+static std::vector<double> g_hessian_time;
+static std::vector<int> g_iteration_count;
+static std::vector<double> g_final_chi;
+
+template <class T>
+void print_statistics(std::string data_name, const std::vector<T> &data){
+	unsigned int size = data.size();
+	double mean = std::accumulate(data.begin(), data.end(), 0.0)/size;
+	auto min = std::min_element(data.begin(), data.end());
+	auto max = std::max_element(data.begin(), data.end());
+
+	std::vector<T> diff(data.size());
+	std::transform(data.begin(), data.end(), diff.begin(), [mean](double x) { return x - mean; });
+	double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+	double stdev = std::sqrt(sq_sum / size);
+	cout<<data_name<<" statistics: ";
+	cout<<", mean="<<mean;
+	cout<<", stdev="<<stdev;
+	cout<<", min="<<*min;
+	cout<<", max="<<*max;
+	cout<<endl;
+}
+
+void print_solver_statistics(){
+	print_statistics("solver time", g_solver_time);
+	print_statistics("make hessian time", g_hessian_time);
+	print_statistics("final_chi", g_final_chi);
+	print_statistics("iteration count", g_iteration_count);
+}
+
+
+
 
 // define the format you want, you only need one instance of this...
 const static Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
@@ -238,6 +276,7 @@ bool Problem::Solve(int iterations) {
 //                stop = (b_max <= 1e-12);
                 false_cnt = 0;
             } else {
+            	cout<<"try new lambda="<<currentLambda_<<endl;
                 false_cnt ++;
                 RollbackStates();   // 误差没下降，回滚
             }
@@ -255,7 +294,13 @@ bool Problem::Solve(int iterations) {
         }
         last_chi_ = currentChi_;
     }
-    std::cout << "problem solve cost: " << t_solve.toc() << " ms" << std::endl;
+    double elapsed_time = t_solve.toc();
+    g_solver_time.push_back(elapsed_time);
+    g_hessian_time.push_back(t_hessian_cost_);
+    g_iteration_count.push_back(iter);
+    g_final_chi.push_back(currentChi_);
+
+    std::cout << "problem solve cost: " << elapsed_time << " ms"<< std::endl;
     std::cout << "   makeHessian cost: " << t_hessian_cost_ << " ms" << std::endl;
     t_hessian_cost_ = 0.;
     return true;
