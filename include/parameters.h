@@ -61,6 +61,9 @@ extern int ESTIMATE_TD;
 extern int ROLLING_SHUTTER;
 extern double ROW, COL;
 
+extern int SOLVER_OPTIMIZATION_METHOD;
+extern int MAKE_HESSIAN_SPEEDUP;
+
 // void readParameters(ros::NodeHandle &n);
 
 void readParameters(std::string config_file);

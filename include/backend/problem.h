@@ -20,6 +20,15 @@ typedef std::map<unsigned long, std::shared_ptr<Vertex>> HashVertex;
 typedef std::unordered_map<unsigned long, std::shared_ptr<Edge>> HashEdge;
 typedef std::unordered_multimap<unsigned long, std::shared_ptr<Edge>> HashVertexIdToEdge;
 
+enum SolverStrategy
+{
+    LM_Method_1,
+	LM_Method_2,
+	LM_Method_3,
+	LM_Method_REUSELAMBDA,
+	LM_Method_DOGLEG,
+};
+
 class Problem {
 public:
 
@@ -157,6 +166,7 @@ private:
     /// PCG 迭代线性求解器
     VecX PCGSolver(const MatXX &A, const VecX &b, int maxIter);
 
+    SolverStrategy solver_strategy_;
     double currentLambda_;
     double currentChi_;
     double stopThresholdLM_;    // LM 迭代退出阈值条件

@@ -29,6 +29,8 @@ string VINS_RESULT_PATH;
 // string IMU_TOPIC;
 double ROW, COL;
 double TD, TR;
+int SOLVER_OPTIMIZATION_METHOD;
+int MAKE_HESSIAN_SPEEDUP;
 
 
 
@@ -159,6 +161,9 @@ void readParameters(string config_file)
     SHOW_TRACK = fsSettings["show_track"];
     EQUALIZE = fsSettings["equalize"];
     FISHEYE = fsSettings["fisheye"];
+
+    SOLVER_OPTIMIZATION_METHOD = fsSettings["solver_optization_method"];
+    MAKE_HESSIAN_SPEEDUP = fsSettings["make_hessian_speedup"];
     // if (FISHEYE == 1)
     //     FISHEYE_MASK = VINS_FOLDER_PATH + "config/fisheye_mask.jpg";
     CAM_NAMES.push_back(config_file);
@@ -207,6 +212,8 @@ void readParameters(string config_file)
         <<  "\n  EQUALIZE:"<<EQUALIZE
         <<  "\n  FISHEYE:"<<FISHEYE
         <<  "\n  PUB_THIS_FRAME:"<<PUB_THIS_FRAME
+		<<  "\n   MAKE_HESSIAN_SPEEDUP:"<< MAKE_HESSIAN_SPEEDUP
+		<<  "\n  SOLVER_OPTIMIZATION_METHOD:"<<SOLVER_OPTIMIZATION_METHOD
     << endl;
 
 }

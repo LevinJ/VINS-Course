@@ -8,7 +8,7 @@
 #include<vector>
 #include<algorithm>
 #include<cmath>
-
+#include "parameters.h"
 #ifdef USE_OPENMP
 
 #include <omp.h>
@@ -21,6 +21,10 @@ static std::vector<double> g_solver_time;
 static std::vector<double> g_hessian_time;
 static std::vector<int> g_iteration_count;
 static std::vector<double> g_final_chi;
+
+static double g_lastLambda = -1;
+static double g_lastChi = -1;
+
 
 template <class T>
 void print_statistics(std::string data_name, const std::vector<T> &data){
@@ -48,8 +52,14 @@ void print_solver_statistics(){
 	print_statistics("iteration count", g_iteration_count);
 }
 
-
-
+enum SolverStrategy
+{
+    LM_Method_1,
+	LM_Method_2,
+	LM_Method_3,
+	LM_Method_REUSELAMBDA,
+	LM_Method_DOGLEG,
+};
 
 // define the format you want, you only need one instance of this...
 const static Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
@@ -71,6 +81,7 @@ Problem::Problem(ProblemType problemType) :
     problemType_(problemType) {
     LogoutVectorSize();
     verticies_marg_.clear();
+    solver_strategy_ = (SolverStrategy)SOLVER_OPTIMIZATION_METHOD;
 }
 extern unsigned long global_edge_id;
 Problem::~Problem() {
@@ -234,11 +245,13 @@ bool Problem::Solve(int iterations) {
     bool stop = false;
     int iter = 0;
     double last_chi_ = 1e20;
+    int false_cnt = 0;
     while (!stop && (iter < iterations)) {
         std::cout << "iter: " << iter << " , chi= " << currentChi_<<",vision="<<current_prj_Chi_
         		<<",imu="<<current_imu_Chi_<< " , Lambda= " << currentLambda_ << std::endl;
+        g_lastLambda =  currentLambda_;
         bool oneStepSuccess = false;
-        int false_cnt = 0;
+        false_cnt = 0;
         while (!oneStepSuccess && false_cnt < 10)  // 不断尝试 Lambda, 直到成功迭代一步
         {
             // setLambda
@@ -263,7 +276,7 @@ bool Problem::Solve(int iterations) {
             oneStepSuccess = IsGoodStepInLM();
             // 后续处理，
             if (oneStepSuccess) {
-//                std::cout << " get one step success\n";
+                std::cout << " delta_x="<<delta_x_.mean()<<std::endl;
 
                 // 在新线性化点 构建 hessian
                 MakeHessian();
@@ -299,6 +312,10 @@ bool Problem::Solve(int iterations) {
     g_hessian_time.push_back(t_hessian_cost_);
     g_iteration_count.push_back(iter);
     g_final_chi.push_back(currentChi_);
+    g_lastChi = currentChi_;
+//    if(false_cnt == 10){
+//    	g_lastLambda = -1;
+//    }
 
     std::cout << "problem solve cost: " << elapsed_time << " ms"<< std::endl;
     std::cout << "   makeHessian cost: " << t_hessian_cost_ << " ms" << std::endl;
@@ -589,6 +606,18 @@ void Problem::ComputeLambdaInitLM() {
     maxDiagonal = std::min(5e10, maxDiagonal);
     double tau = 1e-5;  // 1e-5
     currentLambda_ = tau * maxDiagonal;
+    if(solver_strategy_ == SolverStrategy::LM_Method_REUSELAMBDA){
+    	if(g_lastLambda == -1){
+    		return;
+    	}
+
+    	if(currentChi_ < g_lastChi){
+    		currentLambda_ = 0.5 * g_lastLambda;
+    	}else{
+    		currentLambda_ = 2 * g_lastLambda;
+    	}
+    	std::cout<<"currentChi_="<<currentChi_<<",g_lastChi="<<g_lastChi<<",g_lastLambda="<<g_lastLambda<<",currentLambda_="<<currentLambda_<<endl;
+    }
 //        std::cout << "currentLamba_: "<<maxDiagonal<<" "<<currentLambda_<<std::endl;
 }
 
@@ -641,6 +670,7 @@ bool Problem::IsGoodStepInLM() {
         alpha = std::min(alpha, 2. / 3.);
         double scaleFactor = (std::max)(1. / 3., alpha);
         currentLambda_ *= scaleFactor;
+        currentLambda_ = std::max(currentLambda_, 1e-5);
         ni_ = 2;
         currentChi_ = tempChi;
         current_prj_Chi_ = temp_current_prj_Chi_;
