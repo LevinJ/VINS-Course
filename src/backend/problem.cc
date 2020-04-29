@@ -225,9 +225,113 @@ bool Problem::RemoveEdge(std::shared_ptr<Edge> edge) {
     edges_.erase(edge->Id());
     return true;
 }
+bool Problem::Solve_Dogleg(int iterations){
+	if (edges_.size() == 0 || verticies_.size() == 0) {
+		std::cerr << "\nCannot solve problem without edges or verticies" << std::endl;
+		return false;
+	}
 
+	TicToc t_solve;
+	// 统计优化变量的维数，为构建 H 矩阵做准备
+	SetOrdering();
+	// 遍历edge, 构建 H 矩阵
+	MakeHessian();
+	// LM 初始化
+	ComputeInitChi();
+	trusted_region_ = 1.0;
+	// LM 算法迭代求解
+	bool stop = false;
+	int iter = 0;
+	double last_chi_ = 1e20;
+	int false_cnt = 0;
+	currentLambda_ = 0;// calcualte gassian newton when solving normal equation
+	while (!stop && (iter < iterations)) {
+		std::cout << "iter: " << iter << " , chi= " << currentChi_<<",vision="<<current_prj_Chi_
+				<<",imu="<<current_imu_Chi_<< " , trusted_region_= " << trusted_region_ << std::endl;
+		bool oneStepSuccess = false;
+		false_cnt = 0;
+
+		VecX delta_dl_x;
+		VecX delta_gn_x;
+		double alpha =  b_.transpose() * b_;
+		alpha = alpha/ (b_.transpose() * Hessian_ * b_);
+		VecX delta_sd_x = alpha * b_;
+		bool gn_computed = false;
+		while (!oneStepSuccess && false_cnt < 10)  // 不断尝试 Lambda, 直到成功迭代一步
+		{
+			//calcualte delata_dl_x
+			if(delta_sd_x.norm() > trusted_region_){
+				delta_dl_x = trusted_region_/delta_sd_x.norm() * delta_sd_x;
+			}else{
+				if(!gn_computed){
+					gn_computed = true;
+					SolveLinearSystem();
+					delta_gn_x = delta_x_;
+				}
+				if(delta_gn_x.norm()<= trusted_region_){
+					delta_dl_x = delta_gn_x;
+				}else{
+					double beta = (trusted_region_ - delta_sd_x.norm())/(delta_gn_x - delta_sd_x).norm();
+					delta_dl_x = delta_sd_x + beta * (delta_gn_x - delta_sd_x);
+				}
+			}
+			if(delta_dl_x.norm() < 5e-03 ){
+				stop = true;
+				break;
+			}
+			delta_x_ = delta_dl_x;
+			// 更新状态量
+			UpdateStates();
+			// 判断当前步是否可行以及 Dogleg 的 trust region 怎么更新, chi2 也计算一下
+			oneStepSuccess = IsGoodStepInDogleg();
+			// 后续处理，
+			if (oneStepSuccess) {
+				std::cout << " delta_x="<<delta_x_.norm()<<std::endl;
+				// 在新线性化点 构建 hessian
+				MakeHessian();
+				false_cnt = 0;
+			} else {
+				cout<<"try new trusted_region_="<<trusted_region_<<endl;
+				false_cnt ++;
+				RollbackStates();   // 误差没下降，回滚
+			}
+			if(trusted_region_< 1e-6){
+				break;
+			}
+
+		}
+		iter++;
+
+		// 优化退出条件3： currentChi_ 跟第一次的 chi2 相比，下降了 1e6 倍则退出
+		// TODO:: 应该改成前后两次的误差已经不再变化
+//        if (sqrt(currentChi_) <= stopThresholdLM_)
+//        if (sqrt(currentChi_) < 1e-15)
+		if(last_chi_ - currentChi_ < 1e-5)
+		{
+			std::cout << "sqrt(currentChi_) <= stopThresholdLM_" << std::endl;
+			stop = true;
+		}
+		last_chi_ = currentChi_;
+	}
+	double elapsed_time = t_solve.toc();
+	g_solver_time.push_back(elapsed_time);
+	g_hessian_time.push_back(t_hessian_cost_);
+	g_iteration_count.push_back(iter);
+	g_final_chi.push_back(currentChi_);
+	g_lastChi = currentChi_;
+//    if(false_cnt == 10){
+//    	g_lastLambda = -1;
+//    }
+
+	std::cout << "problem solve cost: " << elapsed_time << " ms"<< std::endl;
+	std::cout << "   makeHessian cost: " << t_hessian_cost_ << " ms" << std::endl;
+	t_hessian_cost_ = 0.;
+	return true;
+}
 bool Problem::Solve(int iterations) {
-
+	if(solver_strategy_ == SolverStrategy::LM_Method_DOGLEG){
+		return Solve_Dogleg(iterations);
+	}
 
     if (edges_.size() == 0 || verticies_.size() == 0) {
         std::cerr << "\nCannot solve problem without edges or verticies" << std::endl;
@@ -566,7 +670,34 @@ void Problem::RollbackStates() {
         err_prior_ = err_prior_backup_;
     }
 }
+void Problem::ComputeInitChi(){
+	currentChi_ = 0.0;
+	current_imu_Chi_ = 0.0;
+	current_prj_Chi_ = 0.0;
 
+	for (auto edge: edges_) {
+		currentChi_ += edge.second->RobustChi2();
+		if(IsProjectionEdge(edge.second)){
+			current_prj_Chi_ +=  0.5 * edge.second->RobustChi2();
+		}
+		if(IsImuEdge(edge.second)){
+			current_imu_Chi_ +=  0.5 * edge.second->RobustChi2();
+			std::cout<<"id="<<edge.second->Id()<<","<<0.5 * edge.second->RobustChi2()<<" ";
+		}
+
+	}
+	std:cout<<std::endl;
+	if (err_prior_.rows() > 0){
+		currentChi_ += err_prior_.squaredNorm();
+		std::cout <<"prior chi= "<<err_prior_.squaredNorm() * 0.5<<std::endl;
+	}
+
+	currentChi_ *= 0.5;
+
+	stopThresholdLM_ = 1e-10 * currentChi_;          // 迭代条件为 误差下降 1e-6 倍
+
+
+}
 /// LM
 void Problem::ComputeLambdaInitLM() {
     ni_ = 2.;
@@ -637,6 +768,48 @@ void Problem::RemoveLambdaHessianLM() {
         Hessian_(i, i) -= currentLambda_;
     }
 }
+bool Problem::IsGoodStepInDogleg() {
+    double scale = 0;
+    scale = 0.5* delta_x_.transpose() * (currentLambda_ * delta_x_ + b_);
+    scale += 1e-6;    // make sure it's non-zero :)
+
+    // recompute residuals after update state
+    double tempChi = 0.0;
+    double temp_current_imu_Chi_ = 0;
+    double temp_current_prj_Chi_ = 0;
+    for (auto edge: edges_) {
+        edge.second->ComputeResidual();
+        tempChi += edge.second->RobustChi2();
+        if(IsProjectionEdge(edge.second)){
+			temp_current_prj_Chi_ +=  0.5 * edge.second->RobustChi2();
+		}
+		if(IsImuEdge(edge.second)){
+			temp_current_imu_Chi_ +=  0.5 * edge.second->RobustChi2();
+		}
+    }
+    if (err_prior_.size() > 0)
+        tempChi += err_prior_.squaredNorm();
+    tempChi *= 0.5;          // 1/2 * err^2
+
+    double rho = (currentChi_ - tempChi) / scale;
+    //update trust region
+    if(rho > 0.75){
+    	trusted_region_ *= 2;
+    }else if(rho < 0.25){
+    	trusted_region_ *= 0.5;
+    }
+    //update chi
+    if (rho > 0 && isfinite(tempChi))   // last step was good, 误差在下降
+    {
+        currentChi_ = tempChi;
+        current_prj_Chi_ = temp_current_prj_Chi_;
+        current_imu_Chi_ = temp_current_imu_Chi_;
+        return true;
+    }else{
+    	return false;
+    }
+}
+
 
 bool Problem::IsGoodStepInLM() {
     double scale = 0;

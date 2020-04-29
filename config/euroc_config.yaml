@@ -82,5 +82,5 @@ visualize_imu_forward: 0        # output imu forward propogation to achieve low 
 visualize_camera_size: 0.4      # size of camera marker in RVIZ
 
 #solver customization parameters
-solver_optization_method: 3
+solver_optization_method: 4
 make_hessian_speedup: 0

@@ -75,6 +75,7 @@ public:
      * @return
      */
     bool Solve(int iterations = 10);
+    bool Solve_Dogleg(int iterations = 10);
 
     /// 边缘化一个frame和以它为host的landmark
     bool Marginalize(std::shared_ptr<Vertex> frameVertex,
@@ -155,6 +156,8 @@ private:
     /// 计算LM算法的初始Lambda
     void ComputeLambdaInitLM();
 
+    void ComputeInitChi();
+
     /// Hessian 对角线加上或者减去  Lambda
     void AddLambdatoHessianLM();
 
@@ -162,6 +165,7 @@ private:
 
     /// LM 算法中用于判断 Lambda 在上次迭代中是否可以，以及Lambda怎么缩放
     bool IsGoodStepInLM();
+    bool IsGoodStepInDogleg();
 
     /// PCG 迭代线性求解器
     VecX PCGSolver(const MatXX &A, const VecX &b, int maxIter);
@@ -176,6 +180,7 @@ private:
 
     ProblemType problemType_;
 
+    double trusted_region_;
     /// 整个信息矩阵
     MatXX Hessian_;
     VecX b_;
