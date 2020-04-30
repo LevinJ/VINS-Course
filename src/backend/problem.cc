@@ -9,11 +9,11 @@
 #include<algorithm>
 #include<cmath>
 #include "parameters.h"
-#ifdef USE_OPENMP
+//#ifdef USE_OPENMP
 
 #include <omp.h>
 
-#endif
+//#endif
 
 using namespace std;
 
@@ -509,6 +509,7 @@ void Problem::MakeHessian_speedup() {
 		assert(jacobians.size() == verticies.size());
 		#pragma omp parallel for num_threads(2)
 		for (size_t i = 0; i < verticies.size(); ++i) {
+			std::cout<<"theadid="<<omp_get_thread_num()<<std::endl;
 			auto v_i = verticies[i];
 			if (v_i->IsFixed()) continue;    // Hessian 里不需要添加它的信息，也就是它的雅克比为 0
 

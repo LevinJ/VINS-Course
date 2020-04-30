@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(vins_estimator)
 
 set(CMAKE_BUILD_TYPE "Release")
@@ -13,13 +13,14 @@ find_package(Ceres 1.14.0 EXACT REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(OpenCV 3.4.6 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options system)
-FIND_PACKAGE( OpenMP REQUIRED)
-if(OPENMP_FOUND)
-message("OPENMP FOUND")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS"${CMAKE_EXE_LINKER_FLAGS}${OpenMP_EXE_LINKER_FLAGS}")
-endif()
+find_package(OpenMP)
+#FIND_PACKAGE( OpenMP REQUIRED)
+#if(OPENMP_FOUND)
+#message("OPENMP FOUND")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+#set(CMAKE_EXE_LINKER_FLAGS"${CMAKE_EXE_LINKER_FLAGS}${OpenMP_EXE_LINKER_FLAGS}")
+#endif()
 
 
 message(WARNING "OpenCV_VERSION: ${OpenCV_VERSION}")
@@ -76,9 +77,10 @@ ADD_LIBRARY(MyVio SHARED
     src/backend/imu_integration.cc
     )
 
-target_link_libraries(MyVio  
+target_link_libraries(MyVio  PUBLIC
   ${OpenCV_LIBS}  
   ${CERES_LIBRARIES}
+  OpenMP::OpenMP_CXX
 	${Pangolin_LIBRARIES}
   camera_model)
 
