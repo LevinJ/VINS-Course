@@ -83,4 +83,4 @@ visualize_camera_size: 0.4      # size of camera marker in RVIZ
 
 #solver customization parameters
 solver_optization_method: 4
-make_hessian_speedup: 0
+make_hessian_speedup: 1

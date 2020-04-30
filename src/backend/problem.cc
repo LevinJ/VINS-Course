@@ -82,6 +82,7 @@ Problem::Problem(ProblemType problemType) :
     LogoutVectorSize();
     verticies_marg_.clear();
     solver_strategy_ = (SolverStrategy)SOLVER_OPTIMIZATION_METHOD;
+    make_hessian_speedup_ = MAKE_HESSIAN_SPEEDUP;
 }
 extern unsigned long global_edge_id;
 Problem::~Problem() {
@@ -478,7 +479,113 @@ bool Problem::CheckOrdering() {
     return true;
 }
 
+void Problem::MakeHessian_speedup() {
+	TicToc t_h;
+	// 直接构造大的 H 矩阵
+	ulong size = ordering_generic_;
+	MatXX H(MatXX::Zero(size, size));
+	VecX b(VecX::Zero(size));
+
+	// TODO:: accelate, accelate, accelate
+//#ifdef USE_OPENMP
+//#pragma omp parallel for
+//#endif
+//	int e =0;
+//	std::vector<unsigned long> edge_keys(edges_.size());
+//	for (auto &edge: edges_){
+//		edge_keys[e++] = edge.first;
+//	}
+//	#pragma omp parallel for num_threads(8)
+//    for (int e =0; e< edge_keys.size(); e++) {
+//    	auto &edge = *edges_.find(edge_keys[e]);
+	for (auto &edge: edges_) {
+
+		edge.second->ComputeResidual();
+		edge.second->ComputeJacobians();
+
+		// TODO:: robust cost
+		auto jacobians = edge.second->Jacobians();
+		auto verticies = edge.second->Verticies();
+		assert(jacobians.size() == verticies.size());
+		#pragma omp parallel for num_threads(2)
+		for (size_t i = 0; i < verticies.size(); ++i) {
+			auto v_i = verticies[i];
+			if (v_i->IsFixed()) continue;    // Hessian 里不需要添加它的信息，也就是它的雅克比为 0
+
+			auto jacobian_i = jacobians[i];
+			ulong index_i = v_i->OrderingId();
+			ulong dim_i = v_i->LocalDimension();
+
+			// 鲁棒核函数会修改残差和信息矩阵，如果没有设置 robust cost function，就会返回原来的
+			double drho;
+			MatXX robustInfo(edge.second->Information().rows(),edge.second->Information().cols());
+			edge.second->RobustInfo(drho,robustInfo);
+
+			MatXX JtW = jacobian_i.transpose() * robustInfo;
+			for (size_t j = i; j < verticies.size(); ++j) {
+				auto v_j = verticies[j];
+
+				if (v_j->IsFixed()) continue;
+
+				auto jacobian_j = jacobians[j];
+				ulong index_j = v_j->OrderingId();
+				ulong dim_j = v_j->LocalDimension();
+
+				assert(v_j->OrderingId() != -1);
+				MatXX hessian = JtW * jacobian_j;
+
+				// 所有的信息矩阵叠加起来
+//				#pragma omp critical(hessian_matrix)
+				{
+					H.block(index_i, index_j, dim_i, dim_j).noalias() += hessian;
+					if (j != i) {
+						// 对称的下三角
+						H.block(index_j, index_i, dim_j, dim_i).noalias() += hessian.transpose();
+
+					}
+				}
+
+			}
+//			#pragma omp critical(b_vector)
+			b.segment(index_i, dim_i).noalias() -= drho * jacobian_i.transpose()* edge.second->Information() * edge.second->Residual();
+		}
+
+	}
+	Hessian_ = H;
+	b_ = b;
+	t_hessian_cost_ += t_h.toc();
+
+	if(H_prior_.rows() > 0)
+	{
+		MatXX H_prior_tmp = H_prior_;
+		VecX b_prior_tmp = b_prior_;
+
+		/// 遍历所有 POSE 顶点，然后设置相应的先验维度为 0 .  fix 外参数, SET PRIOR TO ZERO
+		/// landmark 没有先验
+		for (auto vertex: verticies_) {
+			if (IsPoseVertex(vertex.second) && vertex.second->IsFixed() ) {
+				int idx = vertex.second->OrderingId();
+				int dim = vertex.second->LocalDimension();
+				H_prior_tmp.block(idx,0, dim, H_prior_tmp.cols()).setZero();
+				H_prior_tmp.block(0,idx, H_prior_tmp.rows(), dim).setZero();
+				b_prior_tmp.segment(idx,dim).setZero();
+//                std::cout << " fixed prior, set the Hprior and bprior part to zero, idx: "<<idx <<" dim: "<<dim<<std::endl;
+			}
+		}
+		Hessian_.topLeftCorner(ordering_poses_, ordering_poses_) += H_prior_tmp;
+		b_.head(ordering_poses_) += b_prior_tmp;
+	}
+
+	delta_x_ = VecX::Zero(size);  // initial delta_x = 0_n;
+
+
+}
+
+
 void Problem::MakeHessian() {
+	if(make_hessian_speedup_ == 1){
+		return MakeHessian_speedup();
+	}
     TicToc t_h;
     // 直接构造大的 H 矩阵
     ulong size = ordering_generic_;

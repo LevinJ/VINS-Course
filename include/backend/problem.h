@@ -130,6 +130,7 @@ private:
 
     /// 计算并更新Prior部分
     void ComputePrior();
+    void MakeHessian_speedup();
 
     /// 判断一个顶点是否为Pose顶点
     bool IsPoseVertex(std::shared_ptr<Vertex> v);
@@ -170,6 +171,7 @@ private:
     /// PCG 迭代线性求解器
     VecX PCGSolver(const MatXX &A, const VecX &b, int maxIter);
 
+    int make_hessian_speedup_;
     SolverStrategy solver_strategy_;
     double currentLambda_;
     double currentChi_;
