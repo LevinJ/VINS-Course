@@ -331,6 +331,79 @@ bool Problem::Solve_Dogleg(int iterations){
 	t_hessian_cost_ = 0.;
 	return true;
 }
+bool Problem::IsGoodStepInLM1() {
+
+	ulong size = Hessian_.cols();
+	assert(Hessian_.rows() == Hessian_.cols());
+	MatXX DiagH(MatXX::Zero(size, size));
+	for(ulong i =0; i< size; ++i){
+		DiagH(i,i) = fabs(Hessian_(i,i));
+	}
+    double scale = 0;
+    scale = delta_x_.transpose() * (currentLambda_ * DiagH * delta_x_ + b_);
+    scale += 1e-3;    // make sure it's non-zero :)
+
+    // recompute residuals after update state
+    // 统计所有的残差
+    double tempChi = 0.0;
+    for (auto edge: edges_) {
+        edge.second->ComputeResidual();
+        tempChi += edge.second->Chi2();
+    }
+
+    double rho = (currentChi_ - tempChi) / scale;
+    if (rho > 0 && isfinite(tempChi))   // last step was good, 误差在下降
+    {
+        currentLambda_ = std::min(currentLambda_/9.0, 1.0e-7);
+        currentChi_ = tempChi;
+        return true;
+    } else {
+        currentLambda_ = std::min(currentLambda_ * 11.0, 1.0e7);
+        ni_ *= 2;
+        return false;
+    }
+}
+bool Problem::IsGoodStepInLM2() {
+	// recompute residuals after update state
+	// 统计所有的残差
+	double tempChi = 0.0;
+	for (auto edge: edges_) {
+		edge.second->ComputeResidual();
+		tempChi += edge.second->Chi2();
+	}
+
+	//compute alpha
+	double temp = b_.transpose() * delta_x_;
+	double alpha = temp/((tempChi - currentChi_)/2 + 2 * temp );
+	alpha = std::max(alpha,0.1);
+
+   //reupdate
+    RollbackStates();
+    delta_x_ = alpha* delta_x_;
+    UpdateStates();
+
+    double scale = 0;
+	scale = delta_x_.transpose() * (currentLambda_ * delta_x_ + b_);
+	scale += 1e-3;    // make sure it's non-zero :)
+
+    tempChi = 0.0;
+	for (auto edge: edges_) {
+		edge.second->ComputeResidual();
+		tempChi += edge.second->Chi2();
+	}
+    double rho = (currentChi_ - tempChi) / scale;
+
+    if (rho > 0 && isfinite(tempChi))   // last step was good, 误差在下降
+    {
+    	currentChi_ = tempChi;
+    	currentLambda_ = (std::max)(currentLambda_ /(1+ alpha), 1e-7);
+    	return true;
+    } else {
+    	currentLambda_ +=  std::abs((currentChi_ - tempChi)/(2 * alpha));
+        return false;
+    }
+}
+
 bool Problem::Solve(int iterations) {
 	if(solver_strategy_ == SolverStrategy::LM_Method_DOGLEG){
 		return Solve_Dogleg(iterations);
@@ -380,7 +453,14 @@ bool Problem::Solve(int iterations) {
             // 更新状态量
             UpdateStates();
             // 判断当前步是否可行以及 LM 的 lambda 怎么更新, chi2 也计算一下
-            oneStepSuccess = IsGoodStepInLM();
+            if(solver_strategy_ == SolverStrategy::LM_Method_1){
+            	oneStepSuccess = IsGoodStepInLM1();
+            }else if(solver_strategy_ == SolverStrategy::LM_Method_2){
+            	oneStepSuccess = IsGoodStepInLM2();
+            }else{
+            	oneStepSuccess = IsGoodStepInLM();
+            }
+
             // 后续处理，
             if (oneStepSuccess) {
                 std::cout << " delta_x="<<delta_x_.mean()<<std::endl;
