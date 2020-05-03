@@ -31,6 +31,7 @@ double ROW, COL;
 double TD, TR;
 int SOLVER_OPTIMIZATION_METHOD;
 int MAKE_HESSIAN_SPEEDUP;
+int MAKE_HESSIAN_THREAD_NUMBER;
 
 
 
@@ -164,6 +165,7 @@ void readParameters(string config_file)
 
     SOLVER_OPTIMIZATION_METHOD = fsSettings["solver_optization_method"];
     MAKE_HESSIAN_SPEEDUP = fsSettings["make_hessian_speedup"];
+    MAKE_HESSIAN_THREAD_NUMBER = fsSettings["make_hessian_thread_number"];
     // if (FISHEYE == 1)
     //     FISHEYE_MASK = VINS_FOLDER_PATH + "config/fisheye_mask.jpg";
     CAM_NAMES.push_back(config_file);

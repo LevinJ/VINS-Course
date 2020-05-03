@@ -63,6 +63,7 @@ extern double ROW, COL;
 
 extern int SOLVER_OPTIMIZATION_METHOD;
 extern int MAKE_HESSIAN_SPEEDUP;
+extern int MAKE_HESSIAN_THREAD_NUMBER;
 
 // void readParameters(ros::NodeHandle &n);
 

@@ -13,7 +13,7 @@ find_package(Ceres 1.14.0 EXACT REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(OpenCV 3.4.6 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options system)
-find_package(OpenMP)
+#find_package(OpenMP)
 #FIND_PACKAGE( OpenMP REQUIRED)
 #if(OPENMP_FOUND)
 #message("OPENMP FOUND")
@@ -80,7 +80,6 @@ ADD_LIBRARY(MyVio SHARED
 target_link_libraries(MyVio  PUBLIC
   ${OpenCV_LIBS}  
   ${CERES_LIBRARIES}
-  OpenMP::OpenMP_CXX
 	${Pangolin_LIBRARIES}
   camera_model)
 
